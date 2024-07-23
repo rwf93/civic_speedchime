@@ -34,7 +34,7 @@ void setup_pwm_reader(pwm_reader_t *reader, uint gpio_pin) {
 int pwm_read(pwm_reader_t *reader) {
 	pio_sm_clear_fifos(reader->pio_interface, reader->state);
 
-	while(pio_sm_get_rx_fifo_level(reader->pio_interface, reader->state));
+	while(pio_sm_get_rx_fifo_level(reader->pio_interface, reader->state) < 2);
 
 	uint32_t t1 = (0xFFFFFFFF - pio_sm_get(reader->pio_interface, reader->state));
 	uint32_t t2 = (0xFFFFFFFF - pio_sm_get(reader->pio_interface, reader->state));
@@ -81,7 +81,7 @@ int main() {
 	setup_pwm_reader(&reader, 16);
 	
 	while(true) {
-		printf("%.8f %.8f\n", read_duty_cycle(&reader), read_period(&reader));
+		printf("%.8f %.8f %.8f\n", read_duty_cycle(&reader), read_period(&reader), read_pulse_width(&reader));
 	}
 
 	return 0;
