@@ -6,8 +6,12 @@
 
 #include <hardware/pio.h>
 
-#include <stdio.h>
+#include <hardware/adc.h>
 
+#include <stdint.h>
+#include <stdio.h> 
+
+#include "hardware/timer.h"
 #include "pio_reader.pio.h"
 
 typedef struct pwm_reader {
@@ -49,7 +53,7 @@ int pwm_read(pwm_reader_t *reader) {
 	
 	reader->pulse_width = 2 * reader->pulse_width;
 	reader->period = 2 * reader->period;
-	
+		
 	return 0;
 }
 
@@ -74,15 +78,34 @@ float read_pulse_width(pwm_reader_t *reader) {
 	return (reader->pulse_width * 0.000000008);
 }
 
+static uint32_t now = 0;
+static uint32_t gap = 0;
+static uint32_t last = 0;
+
+// 30-40: last read was 23000 - 23400
+void gpio_callback(uint gpio, uint32_t events) {
+	now = time_us_32();
+	gap = now - last;
+	last = now;
+	if(gap > 4097) {
+		if(gap >= 12000 && gap <= 13200)
+			printf("hitting 60\n");
+		if(gap >= 15200 && gap <= 15500)
+			printf("hitting 50\n");
+		if(gap >= 18500 && gap <= 19000)
+			printf("hitting 40\n");
+		if(gap >= 23100 && gap <= 23500)
+			printf("hitting 30\n");
+	}
+}
+
 int main() {
 	stdio_init_all();
 
-	pwm_reader_t reader;
-	setup_pwm_reader(&reader, 16);
-	
-	while(true) {
-		printf("%.8f %.8f %.8f\n", read_duty_cycle(&reader), read_period(&reader), read_pulse_width(&reader));
-	}
+	now = time_us_32();
+	gpio_set_irq_enabled_with_callback(16, GPIO_IRQ_EDGE_RISE, true, &gpio_callback);
+
+	while(1);
 
 	return 0;
 }
