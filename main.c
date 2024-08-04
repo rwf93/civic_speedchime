@@ -57,7 +57,7 @@ void gpio_callback(uint gpio, uint32_t events) {
 
 	if(gap > 8000) {
 		printf("%lu\n", gap);
-		if(gap <= 18500)
+		if(gap <= 12000)
 			multicore_fifo_push_blocking(0);
 	}
 
