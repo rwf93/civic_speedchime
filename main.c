@@ -13,11 +13,14 @@
 
 #include <pico/multicore.h>
 
+#include <hardware/sync.h>
+
 #include "hardware/timer.h"
 #include "pio_reader.pio.h"
 
 #define SPEED_CHIME_PIN 15
 #define SPEED_SENSOR_PIN 16
+#define WHEEL_CIRCUMFERENCE 1806
 
 static bool speed_sensor_enable = true;
 
@@ -25,27 +28,9 @@ static uint32_t now = 0;
 static uint32_t gap = 0;
 static uint32_t last = 0;
 
-void core1_sio_irq() {
-	printf("Getting chime signal\n");
-
-	while(multicore_fifo_rvalid()) multicore_fifo_pop_blocking();
-	multicore_fifo_clear_irq();
-
-	gpio_put(SPEED_CHIME_PIN, true);
-	busy_wait_us_32(250000);
-	gpio_put(SPEED_CHIME_PIN, false);
-	busy_wait_us_32(1e6);
-
-	gpio_put(SPEED_CHIME_PIN, true);
-	busy_wait_us_32(250000);
-	gpio_put(SPEED_CHIME_PIN, false);
-	busy_wait_us_32(1e6);
-}
-
-void core1_entry() {
-	irq_set_exclusive_handler(SIO_IRQ_PROC1, core1_sio_irq);
-    irq_set_enabled(SIO_IRQ_PROC1, true);
-	while(true) tight_loop_contents();
+float pulse_to_kmh(uint32_t pulse_gap_us) {
+    if (pulse_gap_us == 0) return 0.0f;
+    return (WHEEL_CIRCUMFERENCE * 3.6f) / (float)pulse_gap_us;
 }
 
 // 100: 7000-8000 range
@@ -54,13 +39,26 @@ void gpio_callback(uint gpio, uint32_t events) {
 	now = time_us_32();
 	gap = now - last;
 	last = now;
-
+/*
 	if(gap > 6000) {
 		printf("%lu\n", gap);
-		if(gap <= 7000)
-			multicore_fifo_push_blocking(0);
-	}
+		if(gap <= 7000) {
+			uint32_t disabled_interrupts = save_and_disable_interrupts();	
+		
+			gpio_put(SPEED_CHIME_PIN, true);
+			busy_wait_us_32(250000);
+			gpio_put(SPEED_CHIME_PIN, false);
+			busy_wait_us_32(1e6);
 
+			gpio_put(SPEED_CHIME_PIN, true);
+			busy_wait_us_32(250000);
+			gpio_put(SPEED_CHIME_PIN, false);
+			busy_wait_us_32(1e6);
+			
+			restore_interrupts(disabled_interrupts);
+		}
+	}
+*/
 	/*
 	if(gap > 4097) {
 		printf("%lu\n", gap);
@@ -97,22 +95,16 @@ int main() {
 	gpio_init(SPEED_CHIME_PIN);
 	gpio_set_dir(SPEED_CHIME_PIN, GPIO_OUT);
 
-	/*
-	while(1) {
-		gpio_put(SPEED_CHIME_PIN, true);
-		sleep_ms(250);
-		gpio_put(SPEED_CHIME_PIN, false);
-		sleep_ms(1250);
-	}
-	*/
-
-
 	now = time_us_32();
 	gpio_set_irq_enabled_with_callback(SPEED_SENSOR_PIN, GPIO_IRQ_EDGE_RISE, true, &gpio_callback);
 
-	multicore_launch_core1(core1_entry);
-
-	while(1) {}
+	while(1) {
+		if(gap > 6000) {
+			printf("%lu\n", gap);
+			if(gap <= 7000) {
+			}
+		}
+	}
 
 	return 0;
 }
